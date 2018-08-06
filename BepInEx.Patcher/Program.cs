@@ -10,6 +10,17 @@ namespace BepInEx.Patcher
 {
     class Program
     {
+        /*
+         * =========
+         * Basic entrypoint configuration
+         * =========
+         *
+         * If you need more sophisticated options, edit the code directly.
+         */
+        const string TARGET_ASSEMBLY = "UnityEngine.dll";
+        const string TARGET_TYPE = "UnityEngine.Application";
+        const string TARGET_METHOD = ".cctor";
+
         static void WriteError(string message)
         {
             Console.ForegroundColor = ConsoleColor.Red;
@@ -42,7 +53,7 @@ namespace BepInEx.Patcher
                 string gameName = Path.GetFileNameWithoutExtension(exePath);
 
                 string managedDir = Environment.CurrentDirectory + $@"\{gameName}_Data\Managed";
-                string unityOutputDLL = Path.GetFullPath($"{managedDir}\\UnityEngine.dll");
+                string unityOutputDLL = Path.GetFullPath($"{managedDir}\\{TARGET_ASSEMBLY}");
 
                 if (!Directory.Exists(managedDir) || !File.Exists(unityOutputDLL))
                     continue;
@@ -95,7 +106,7 @@ namespace BepInEx.Patcher
                     AssemblyResolver = defaultResolver
                 };
 
-                string unityBackupDLL = Path.GetFullPath($"{managedDir}\\UnityEngine.dll.bak");
+                string unityBackupDLL = Path.GetFullPath($"{managedDir}\\{TARGET_ASSEMBLY}.bak");
                 
                 //determine which assembly to use as a base
                 AssemblyDefinition unity = AssemblyDefinition.ReadAssembly(unityOutputDLL, rp);
@@ -158,22 +169,39 @@ namespace BepInEx.Patcher
 
             var injectMethod = unity.MainModule.ImportReference(originalInjectMethod);
 
-            var sceneManager = unity.MainModule.Types.First(x => x.Name == "Application");
+            var sceneManager = unity.MainModule.GetType(TARGET_TYPE);
 
-            var voidType = unity.MainModule.ImportReference(typeof(void));
-            var cctor = new MethodDefinition(".cctor",
-                MethodAttributes.Static
-                | MethodAttributes.Private
-                | MethodAttributes.HideBySig
-                | MethodAttributes.SpecialName
-                | MethodAttributes.RTSpecialName,
-                voidType);
+            var targetMethod = sceneManager.Methods.FirstOrDefault(m => m.Name == TARGET_METHOD);
 
-            var ilp = cctor.Body.GetILProcessor();
-            ilp.Append(ilp.Create(OpCodes.Call, injectMethod));
-            ilp.Append(ilp.Create(OpCodes.Ret));
+            ILProcessor il;
 
-            sceneManager.Methods.Add(cctor);
+            if (targetMethod == null)
+            {
+                if (TARGET_METHOD == ".cctor")
+                {
+                    var voidType = unity.MainModule.ImportReference(typeof(void));
+                    targetMethod = new MethodDefinition(".cctor",
+                                                        MethodAttributes.Static
+                                                        | MethodAttributes.Private
+                                                        | MethodAttributes.HideBySig
+                                                        | MethodAttributes.SpecialName
+                                                        | MethodAttributes.RTSpecialName,
+                                                        voidType);
+
+                    il = targetMethod.Body.GetILProcessor();
+                    il.Append(il.Create(OpCodes.Ret));
+                    sceneManager.Methods.Add(targetMethod);
+                }
+                else
+                {
+                    throw new Exception($"Failed to patch {unity.FullName} because entry point is invalid!");
+                }
+            }
+
+            il = targetMethod.Body.GetILProcessor();
+            var ins = targetMethod.Body.Instructions.First();
+
+            il.InsertBefore(ins, il.Create(OpCodes.Call, injectMethod));
         }
 
         static bool VerifyAssembly(AssemblyDefinition unity, out string message)
