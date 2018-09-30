@@ -50,6 +50,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Bootstrap\AssemblyLoader.cs" />
     <Compile Include="Bootstrap\Entrypoint.cs" />
     <Compile Include="Contract\Attributes.cs" />
     <Compile Include="Bootstrap\PatcherProcessor.cs" />

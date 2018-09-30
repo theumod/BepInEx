@@ -59,32 +59,17 @@ namespace BepInEx.Bootstrap
 				string entrypointAssembly = Config.GetEntry("entrypoint-assembly", "UnityEngine.dll", "Preloader");
 
                 var assPatcher = new PatcherProcessor();
+
 			    assPatcher.AddPatcher(new AssemblyPatcher { TargetDLLs = new [] {entrypointAssembly}, Patcher = PatchEntrypoint });
+                assPatcher.AddPatchersFromDirectory(Paths.PatcherPluginPath, GetPatcherMethods);
 
-				if (Directory.Exists(Paths.PatcherPluginPath))
-				{
-					var sortedPatchers = new SortedDictionary<string, AssemblyPatcher>();
+			    var assembliesToPatch = AssemblyLoader.LoadIntoCecil(Paths.ManagedPath);
 
-					foreach (string assemblyPath in Directory.GetFiles(Paths.PatcherPluginPath, "*.dll"))
-						try
-						{
-							var assembly = Assembly.LoadFrom(assemblyPath);
-
-							foreach (var patcher in GetPatcherMethods(assembly))
-								sortedPatchers.Add(patcher.Name, patcher);
-						}
-						catch (BadImageFormatException) { } //unmanaged DLL
-						catch (ReflectionTypeLoadException) { } //invalid references
-
-					foreach (var patcher in sortedPatchers)
-						assPatcher.AddPatcher(patcher.Value);
-				}
-
-			    var assembliesToPatch = PatcherProcessor.LoadAllAssemblies(Paths.ManagedPath);
-                assPatcher.InitializePatching();
+			    assPatcher.InitializePatching();
                 var patchedAssemblies = assPatcher.PatchAll(assembliesToPatch);
                 assPatcher.FinalizePatching();
-                PatcherProcessor.LoadAssembliesIntoMemory(assembliesToPatch, patchedAssemblies);
+
+			    AssemblyLoader.LoadIntoCLR(assembliesToPatch, patchedAssemblies);
 			}
 			catch (Exception ex)
 			{

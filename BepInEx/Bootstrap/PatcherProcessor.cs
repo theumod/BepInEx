@@ -21,16 +21,11 @@ namespace BepInEx.Bootstrap
         public string Name { get; set; } = string.Empty;
     }
 
-	/// <summary>
+    /// <summary>
 	/// Worker class which is used for loading and patching entire folders of assemblies, or alternatively patching and loading assemblies one at a time.
 	/// </summary>
     internal class PatcherProcessor
     {
-		/// <summary>
-		/// Configuration value of whether assembly dumping is enabled or not.
-		/// </summary>
-        private static bool DumpingEnabled => Utility.SafeParseBool(Config.GetEntry("dump-assemblies", "false", "Preloader"));
-
         /// <summary>
         ///     The dictionary of currently loaded patchers. The key is the patcher delegate that will be used to patch, and the
         ///     value is a list of filenames of assemblies that the patcher is targeting.
@@ -57,55 +52,26 @@ namespace BepInEx.Bootstrap
                 Finalizers.Add(patcher.Finalizer);
         }
 
-        public static Dictionary<string, AssemblyDefinition> LoadAllAssemblies(string directory)
+        public void AddPatchersFromDirectory(string directory, Func<Assembly, List<AssemblyPatcher>> patcherLocator)
         {
-            Dictionary<string, AssemblyDefinition> assemblies = new Dictionary<string, AssemblyDefinition>();
+            if (!Directory.Exists(directory))
+                return;
+
+            var sortedPatchers = new SortedDictionary<string, AssemblyPatcher>();
 
             foreach (string assemblyPath in Directory.GetFiles(directory, "*.dll"))
-            {
-                var assembly = AssemblyDefinition.ReadAssembly(assemblyPath);
-
-                //NOTE: this is special cased here because the dependency handling for System.dll is a bit wonky
-                //System has an assembly reference to itself, and it also has a reference to Mono.Security causing a circular dependency
-                //It's also generally dangerous to change system.dll since so many things rely on it, 
-                // and it's already loaded into the appdomain since this loader references it, so we might as well skip it
-                if (assembly.Name.Name == "System"
-                    || assembly.Name.Name == "mscorlib") //mscorlib is already loaded into the appdomain so it can't be patched
+                try
                 {
-                    assembly.Dispose();
-                    continue;
+                    var assembly = Assembly.LoadFrom(assemblyPath);
+
+                    foreach (var patcher in patcherLocator(assembly))
+                        sortedPatchers.Add(patcher.Name, patcher);
                 }
+                catch (BadImageFormatException) { } //unmanaged DLL
+                catch (ReflectionTypeLoadException) { } //invalid references
 
-                assemblies.Add(Path.GetFileName(assemblyPath), assembly);
-            }
-
-            return assemblies;
-        }
-
-        public static void LoadAssembliesIntoMemory(IDictionary<string, AssemblyDefinition> assemblies, HashSet<string> patchedAssemblies)
-        {
-            foreach (var kv in assemblies)
-            {
-                string filename = kv.Key;
-                var assembly = kv.Value;
-
-                if (DumpingEnabled && patchedAssemblies.Contains(filename))
-                {
-                    using (MemoryStream mem = new MemoryStream())
-                    {
-                        string dirPath = Path.Combine(Paths.PluginPath, "DumpedAssemblies");
-
-                        if (!Directory.Exists(dirPath))
-                            Directory.CreateDirectory(dirPath);
-
-                        assembly.Write(mem);
-                        File.WriteAllBytes(Path.Combine(dirPath, filename), mem.ToArray());
-                    }
-                }
-
-                Load(assembly);
-                assembly.Dispose();
-            }
+            foreach (var patcher in sortedPatchers)
+                AddPatcher(patcher.Value);
         }
 
         public void InitializePatching()
@@ -159,18 +125,5 @@ namespace BepInEx.Bootstrap
         {
 	        patcherMethod.Invoke(ref assembly);
         }
-
-		/// <summary>
-		/// Loads an individual assembly defintion into the CLR.
-		/// </summary>
-		/// <param name="assembly">The assembly to load.</param>
-	    public static void Load(AssemblyDefinition assembly)
-	    {
-		    using (MemoryStream assemblyStream = new MemoryStream())
-		    {
-			    assembly.Write(assemblyStream);
-			    Assembly.Load(assemblyStream.ToArray());
-		    }
-	    }
     }
 }
