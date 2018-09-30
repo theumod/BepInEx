@@ -52,7 +52,7 @@
   <ItemGroup>
     <Compile Include="Bootstrap\Entrypoint.cs" />
     <Compile Include="Contract\Attributes.cs" />
-    <Compile Include="Bootstrap\AssemblyPatcher.cs" />
+    <Compile Include="Bootstrap\PatcherProcessor.cs" />
     <Compile Include="Bootstrap\Preloader.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="ConfigWrapper.cs" />

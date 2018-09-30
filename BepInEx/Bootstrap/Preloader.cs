@@ -58,12 +58,12 @@ namespace BepInEx.Bootstrap
 
 				string entrypointAssembly = Config.GetEntry("entrypoint-assembly", "UnityEngine.dll", "Preloader");
 
-                var assPatcher = new AssemblyPatcher();
-			    assPatcher.AddPatcher(new CecilPatcher { TargetDLLs = new [] {entrypointAssembly}, Patcher = PatchEntrypoint });
+                var assPatcher = new PatcherProcessor();
+			    assPatcher.AddPatcher(new AssemblyPatcher { TargetDLLs = new [] {entrypointAssembly}, Patcher = PatchEntrypoint });
 
 				if (Directory.Exists(Paths.PatcherPluginPath))
 				{
-					var sortedPatchers = new SortedDictionary<string, CecilPatcher>();
+					var sortedPatchers = new SortedDictionary<string, AssemblyPatcher>();
 
 					foreach (string assemblyPath in Directory.GetFiles(Paths.PatcherPluginPath, "*.dll"))
 						try
@@ -80,11 +80,11 @@ namespace BepInEx.Bootstrap
 						assPatcher.AddPatcher(patcher.Value);
 				}
 
-			    var assembliesToPatch = AssemblyPatcher.LoadAllAssemblies(Paths.ManagedPath);
+			    var assembliesToPatch = PatcherProcessor.LoadAllAssemblies(Paths.ManagedPath);
                 assPatcher.InitializePatching();
                 var patchedAssemblies = assPatcher.PatchAll(assembliesToPatch);
                 assPatcher.FinalizePatching();
-                AssemblyPatcher.LoadAssembliesIntoMemory(assembliesToPatch, patchedAssemblies);
+                PatcherProcessor.LoadAssembliesIntoMemory(assembliesToPatch, patchedAssemblies);
 			}
 			catch (Exception ex)
 			{
@@ -117,9 +117,9 @@ namespace BepInEx.Bootstrap
 		/// </summary>
 		/// <param name="assembly">The assembly to scan.</param>
 		/// <returns>A dictionary of delegates which will be used to patch the targeted assemblies.</returns>
-		public static List<CecilPatcher> GetPatcherMethods(Assembly assembly)
+		public static List<AssemblyPatcher> GetPatcherMethods(Assembly assembly)
 		{
-			var patcherMethods = new List<CecilPatcher>();
+			var patcherMethods = new List<AssemblyPatcher>();
 
 			foreach (var type in assembly.GetExportedTypes())
 				try
@@ -154,7 +154,7 @@ namespace BepInEx.Bootstrap
 					if (targetsProperty == null || !targetsProperty.CanRead || patcher == null)
 						continue;
 
-				    var cecilPatcher = new CecilPatcher();
+				    var cecilPatcher = new AssemblyPatcher();
 
 				    cecilPatcher.Name = $"{assembly.GetName().Name}.{type.FullName}";
 				    cecilPatcher.Patcher = (ref AssemblyDefinition ass) =>

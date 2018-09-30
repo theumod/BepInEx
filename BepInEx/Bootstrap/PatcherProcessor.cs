@@ -12,7 +12,7 @@ namespace BepInEx.Bootstrap
 	/// <param name="assembly">The assembly that is being patched.</param>
     public delegate void AssemblyPatcherDelegate(ref AssemblyDefinition assembly);
 
-    internal class CecilPatcher
+    internal class AssemblyPatcher
     {
         public IEnumerable<string> TargetDLLs { get; set; } = null;
         public Action Initializer { get; set; } = null;
@@ -24,7 +24,7 @@ namespace BepInEx.Bootstrap
 	/// <summary>
 	/// Worker class which is used for loading and patching entire folders of assemblies, or alternatively patching and loading assemblies one at a time.
 	/// </summary>
-    internal class AssemblyPatcher
+    internal class PatcherProcessor
     {
 		/// <summary>
 		/// Configuration value of whether assembly dumping is enabled or not.
@@ -42,12 +42,12 @@ namespace BepInEx.Bootstrap
 
         private List<Action> Finalizers { get; } = new List<Action>();
 
-        public AssemblyPatcher()
+        public PatcherProcessor()
         {
 
         }
 
-        public void AddPatcher(CecilPatcher patcher)
+        public void AddPatcher(AssemblyPatcher patcher)
         {
             if (patcher.TargetDLLs != null && patcher.Patcher != null)
                 Patchers[patcher.Patcher] = patcher.TargetDLLs;
