@@ -15,7 +15,7 @@ namespace BepInEx.Bootstrap
 	/// <summary>
 	/// Worker class which is used for loading and patching entire folders of assemblies, or alternatively patching and loading assemblies one at a time.
 	/// </summary>
-    public static class AssemblyPatcher
+    public class AssemblyPatcher
     {
 		/// <summary>
 		/// Configuration value of whether assembly dumping is enabled or not.
@@ -23,26 +23,44 @@ namespace BepInEx.Bootstrap
         private static bool DumpingEnabled => Utility.SafeParseBool(Config.GetEntry("dump-assemblies", "false", "Preloader"));
 
         /// <summary>
-        /// Patches and loads an entire directory of assemblies.
+        ///     The dictionary of currently loaded patchers. The key is the patcher delegate that will be used to patch, and the
+        ///     value is a list of filenames of assemblies that the patcher is targeting.
         /// </summary>
-        /// <param name="directory">The directory to load assemblies from.</param>
-        /// <param name="patcherMethodDictionary">The dictionary of patchers and their targeted assembly filenames which they are patching.</param>
-        /// <param name="initializers">List of initializers to run before any patching starts</param>
-        /// <param name="finalizers">List of finalizers to run before returning</param>
-        public static void PatchAll(string directory, IDictionary<AssemblyPatcherDelegate, IEnumerable<string>> patcherMethodDictionary, IEnumerable<Action> initializers = null, IEnumerable<Action> finalizers = null)
-        {
-			//run all initializers
-			if (initializers != null)
-				foreach (Action init in initializers)
-					init.Invoke();
+        public Dictionary<AssemblyPatcherDelegate, IEnumerable<string>> Patchers { get; } =
+            new Dictionary<AssemblyPatcherDelegate, IEnumerable<string>>();
 
-            //load all the requested assemblies
+        public List<Action> Initializers { get; } = new List<Action>();
+
+        public List<Action> Finalizers { get; } = new List<Action>();
+
+        public AssemblyPatcher()
+        {
+
+        }
+
+        public void AddInitializer(Action initializer)
+        {
+            Initializers.Add(initializer);
+        }
+
+        public void AddFinalizer(Action finalizer)
+        {
+            Finalizers.Add(finalizer);
+        }
+
+        public void AddPatcher(IEnumerable<string> dllNames, AssemblyPatcherDelegate patcher)
+        {
+            Patchers[patcher] = dllNames;
+        }
+
+        public static Dictionary<string, AssemblyDefinition> LoadAllAssemblies(string directory)
+        {
             Dictionary<string, AssemblyDefinition> assemblies = new Dictionary<string, AssemblyDefinition>();
 
             foreach (string assemblyPath in Directory.GetFiles(directory, "*.dll"))
             {
                 var assembly = AssemblyDefinition.ReadAssembly(assemblyPath);
-                
+
                 //NOTE: this is special cased here because the dependency handling for System.dll is a bit wonky
                 //System has an assembly reference to itself, and it also has a reference to Mono.Security causing a circular dependency
                 //It's also generally dangerous to change system.dll since so many things rely on it, 
@@ -57,10 +75,52 @@ namespace BepInEx.Bootstrap
                 assemblies.Add(Path.GetFileName(assemblyPath), assembly);
             }
 
+            return assemblies;
+        }
+
+        public static void LoadAssembliesIntoMemory(IDictionary<string, AssemblyDefinition> assemblies, HashSet<string> patchedAssemblies)
+        {
+            foreach (var kv in assemblies)
+            {
+                string filename = kv.Key;
+                var assembly = kv.Value;
+
+                if (DumpingEnabled && patchedAssemblies.Contains(filename))
+                {
+                    using (MemoryStream mem = new MemoryStream())
+                    {
+                        string dirPath = Path.Combine(Paths.PluginPath, "DumpedAssemblies");
+
+                        if (!Directory.Exists(dirPath))
+                            Directory.CreateDirectory(dirPath);
+
+                        assembly.Write(mem);
+                        File.WriteAllBytes(Path.Combine(dirPath, filename), mem.ToArray());
+                    }
+                }
+
+                Load(assembly);
+                assembly.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Patches and loads an entire directory of assemblies.
+        /// </summary>
+        /// <param name="directory">The directory to load assemblies from.</param>
+        /// <param name="patcherMethodDictionary">The dictionary of patchers and their targeted assembly filenames which they are patching.</param>
+        /// <param name="initializers">List of initializers to run before any patching starts</param>
+        /// <param name="finalizers">List of finalizers to run before returning</param>
+        public HashSet<string> PatchAll(IDictionary<string, AssemblyDefinition> assemblies)
+        {
+			//run all initializers
+			foreach (var init in Initializers)
+				init.Invoke();
+
             HashSet<string> patchedAssemblies = new HashSet<string>();
 
             //call the patchers on the assemblies
-	        foreach (var patcherMethod in patcherMethodDictionary)
+	        foreach (var patcherMethod in Patchers)
 	        {
 		        foreach (string assemblyFilename in patcherMethod.Value)
 		        {
@@ -72,35 +132,12 @@ namespace BepInEx.Bootstrap
                     }
 		        }
 	        }
-
-            // Finally, load all assemblies into memory
-			foreach (var kv in assemblies)
-			{
-				string filename = kv.Key;
-				var assembly = kv.Value;
-
-			    if (DumpingEnabled && patchedAssemblies.Contains(filename))
-			    {
-			        using (MemoryStream mem = new MemoryStream())
-			        {
-			            string dirPath = Path.Combine(Paths.PluginPath, "DumpedAssemblies");
-
-			            if (!Directory.Exists(dirPath))
-			                Directory.CreateDirectory(dirPath);
-                            
-			            assembly.Write(mem);
-			            File.WriteAllBytes(Path.Combine(dirPath, filename), mem.ToArray());
-			        }
-			    }
-
-			    Load(assembly);
-			    assembly.Dispose();
-			}
 			
 	        //run all finalizers
-	        if (finalizers != null)
-		        foreach (Action finalizer in finalizers)
-			        finalizer.Invoke();
+		    foreach (var finalizer in Finalizers)
+			    finalizer.Invoke();
+
+            return patchedAssemblies;
         }
 
 		/// <summary>
@@ -108,7 +145,7 @@ namespace BepInEx.Bootstrap
 		/// </summary>
 		/// <param name="assembly">The assembly definition to apply the patch to.</param>
 		/// <param name="patcherMethod">The patcher to use to patch the assembly definition.</param>
-        public static void Patch(ref AssemblyDefinition assembly, AssemblyPatcherDelegate patcherMethod)
+        private void Patch(ref AssemblyDefinition assembly, AssemblyPatcherDelegate patcherMethod)
         {
 	        patcherMethod.Invoke(ref assembly);
         }
