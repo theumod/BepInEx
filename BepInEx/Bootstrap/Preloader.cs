@@ -59,29 +59,31 @@ namespace BepInEx.Bootstrap
 				string entrypointAssembly = Config.GetEntry("entrypoint-assembly", "UnityEngine.dll", "Preloader");
 
                 var assPatcher = new AssemblyPatcher();
-			    assPatcher.AddPatcher(new[] {entrypointAssembly}, PatchEntrypoint);
+			    assPatcher.AddPatcher(new CecilPatcher { TargetDLLs = new [] {entrypointAssembly}, Patcher = PatchEntrypoint });
 
 				if (Directory.Exists(Paths.PatcherPluginPath))
 				{
-					var sortedPatchers = new SortedDictionary<string, KeyValuePair<AssemblyPatcherDelegate, IEnumerable<string>>>();
+					var sortedPatchers = new SortedDictionary<string, CecilPatcher>();
 
 					foreach (string assemblyPath in Directory.GetFiles(Paths.PatcherPluginPath, "*.dll"))
 						try
 						{
 							var assembly = Assembly.LoadFrom(assemblyPath);
 
-							foreach (var kv in GetPatcherMethods(assPatcher, assembly))
-								sortedPatchers.Add(assembly.GetName().Name, kv);
+							foreach (var patcher in GetPatcherMethods(assembly))
+								sortedPatchers.Add(patcher.Name, patcher);
 						}
 						catch (BadImageFormatException) { } //unmanaged DLL
 						catch (ReflectionTypeLoadException) { } //invalid references
 
-					foreach (var kv in sortedPatchers)
-						assPatcher.AddPatcher(kv.Value.Value, kv.Value.Key);
+					foreach (var patcher in sortedPatchers)
+						assPatcher.AddPatcher(patcher.Value);
 				}
 
 			    var assembliesToPatch = AssemblyPatcher.LoadAllAssemblies(Paths.ManagedPath);
+                assPatcher.InitializePatching();
                 var patchedAssemblies = assPatcher.PatchAll(assembliesToPatch);
+                assPatcher.FinalizePatching();
                 AssemblyPatcher.LoadAssembliesIntoMemory(assembliesToPatch, patchedAssemblies);
 			}
 			catch (Exception ex)
@@ -115,15 +117,16 @@ namespace BepInEx.Bootstrap
 		/// </summary>
 		/// <param name="assembly">The assembly to scan.</param>
 		/// <returns>A dictionary of delegates which will be used to patch the targeted assemblies.</returns>
-		public static Dictionary<AssemblyPatcherDelegate, IEnumerable<string>> GetPatcherMethods(AssemblyPatcher assPatcher, Assembly assembly)
+		public static List<CecilPatcher> GetPatcherMethods(Assembly assembly)
 		{
-			var patcherMethods = new Dictionary<AssemblyPatcherDelegate, IEnumerable<string>>();
+			var patcherMethods = new List<CecilPatcher>();
 
 			foreach (var type in assembly.GetExportedTypes())
 				try
 				{
 					if (type.IsInterface)
 						continue;
+
 
 					var targetsProperty = type.GetProperty("TargetDLLs",
 						BindingFlags.Public | BindingFlags.Static | BindingFlags.IgnoreCase,
@@ -151,19 +154,22 @@ namespace BepInEx.Bootstrap
 					if (targetsProperty == null || !targetsProperty.CanRead || patcher == null)
 						continue;
 
-					AssemblyPatcherDelegate patchDelegate = (ref AssemblyDefinition ass) =>
-					{
-						//we do the array fuckery here to get the ref result out
-						object[] args = {ass};
+				    var cecilPatcher = new CecilPatcher();
 
-						patcher.Invoke(null, args);
+				    cecilPatcher.Name = $"{assembly.GetName().Name}.{type.FullName}";
+				    cecilPatcher.Patcher = (ref AssemblyDefinition ass) =>
+				    {
+				        //we do the array fuckery here to get the ref result out
+				        object[] args = {ass};
 
-						ass = (AssemblyDefinition) args[0];
-					};
+				        patcher.Invoke(null, args);
 
-					var targets = (IEnumerable<string>) targetsProperty.GetValue(null, null);
+				        ass = (AssemblyDefinition) args[0];
+				    };
 
-					patcherMethods[patchDelegate] = targets;
+                    var targets = (IEnumerable<string>) targetsProperty.GetValue(null, null);
+
+				    cecilPatcher.TargetDLLs = targets;
 
 					var initMethod = type.GetMethod("Initialize",
 						BindingFlags.Public | BindingFlags.Static | BindingFlags.IgnoreCase,
@@ -173,17 +179,17 @@ namespace BepInEx.Bootstrap
 						null);
 
 				    if (initMethod != null)
-				        assPatcher.AddInitializer(() => initMethod.Invoke(null, null));
+				        cecilPatcher.Initializer = () => initMethod.Invoke(null, null);
 
-					var finalizeMethod = type.GetMethod("Finish",
+                    var finalizeMethod = type.GetMethod("Finish",
 						BindingFlags.Public | BindingFlags.Static | BindingFlags.IgnoreCase,
 						null,
 						CallingConventions.Any,
 						Type.EmptyTypes,
 						null);
 
-					if (finalizeMethod != null)
-						assPatcher.AddFinalizer(() => finalizeMethod.Invoke(null, null));
+				    if (finalizeMethod != null)
+				        cecilPatcher.Finalizer = () => finalizeMethod.Invoke(null, null);
 				}
 				catch (Exception ex)
 				{
@@ -192,7 +198,7 @@ namespace BepInEx.Bootstrap
 				}
 
 			Logger.Log(LogLevel.Info,
-				$"Loaded {patcherMethods.Select(x => x.Key).Distinct().Count()} patcher methods from {assembly.GetName().Name}");
+				$"Loaded {patcherMethods.Count} patcher methods from {assembly.GetName().Name}");
 
 			return patcherMethods;
 		}

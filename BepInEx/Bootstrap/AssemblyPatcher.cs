@@ -12,10 +12,19 @@ namespace BepInEx.Bootstrap
 	/// <param name="assembly">The assembly that is being patched.</param>
     public delegate void AssemblyPatcherDelegate(ref AssemblyDefinition assembly);
 
+    internal class CecilPatcher
+    {
+        public IEnumerable<string> TargetDLLs { get; set; } = null;
+        public Action Initializer { get; set; } = null;
+        public Action Finalizer { get; set; } = null;
+        public AssemblyPatcherDelegate Patcher { get; set; } = null;
+        public string Name { get; set; } = string.Empty;
+    }
+
 	/// <summary>
 	/// Worker class which is used for loading and patching entire folders of assemblies, or alternatively patching and loading assemblies one at a time.
 	/// </summary>
-    public class AssemblyPatcher
+    internal class AssemblyPatcher
     {
 		/// <summary>
 		/// Configuration value of whether assembly dumping is enabled or not.
@@ -26,31 +35,26 @@ namespace BepInEx.Bootstrap
         ///     The dictionary of currently loaded patchers. The key is the patcher delegate that will be used to patch, and the
         ///     value is a list of filenames of assemblies that the patcher is targeting.
         /// </summary>
-        public Dictionary<AssemblyPatcherDelegate, IEnumerable<string>> Patchers { get; } =
+        private Dictionary<AssemblyPatcherDelegate, IEnumerable<string>> Patchers { get; } =
             new Dictionary<AssemblyPatcherDelegate, IEnumerable<string>>();
 
-        public List<Action> Initializers { get; } = new List<Action>();
+        private List<Action> Initializers { get; } = new List<Action>();
 
-        public List<Action> Finalizers { get; } = new List<Action>();
+        private List<Action> Finalizers { get; } = new List<Action>();
 
         public AssemblyPatcher()
         {
 
         }
 
-        public void AddInitializer(Action initializer)
+        public void AddPatcher(CecilPatcher patcher)
         {
-            Initializers.Add(initializer);
-        }
-
-        public void AddFinalizer(Action finalizer)
-        {
-            Finalizers.Add(finalizer);
-        }
-
-        public void AddPatcher(IEnumerable<string> dllNames, AssemblyPatcherDelegate patcher)
-        {
-            Patchers[patcher] = dllNames;
+            if (patcher.TargetDLLs != null && patcher.Patcher != null)
+                Patchers[patcher.Patcher] = patcher.TargetDLLs;
+            if(patcher.Initializer != null)
+                Initializers.Add(patcher.Initializer);
+            if(patcher.Finalizer != null)
+                Finalizers.Add(patcher.Finalizer);
         }
 
         public static Dictionary<string, AssemblyDefinition> LoadAllAssemblies(string directory)
@@ -104,6 +108,13 @@ namespace BepInEx.Bootstrap
             }
         }
 
+        public void InitializePatching()
+        {
+            //run all initializers
+            foreach (var init in Initializers)
+                init.Invoke();
+        }
+
         /// <summary>
         /// Patches and loads an entire directory of assemblies.
         /// </summary>
@@ -113,10 +124,6 @@ namespace BepInEx.Bootstrap
         /// <param name="finalizers">List of finalizers to run before returning</param>
         public HashSet<string> PatchAll(IDictionary<string, AssemblyDefinition> assemblies)
         {
-			//run all initializers
-			foreach (var init in Initializers)
-				init.Invoke();
-
             HashSet<string> patchedAssemblies = new HashSet<string>();
 
             //call the patchers on the assemblies
@@ -132,12 +139,15 @@ namespace BepInEx.Bootstrap
                     }
 		        }
 	        }
-			
-	        //run all finalizers
-		    foreach (var finalizer in Finalizers)
-			    finalizer.Invoke();
 
             return patchedAssemblies;
+        }
+
+        public void FinalizePatching()
+        {
+            //run all finalizers
+            foreach (var finalizer in Finalizers)
+                finalizer.Invoke();
         }
 
 		/// <summary>
