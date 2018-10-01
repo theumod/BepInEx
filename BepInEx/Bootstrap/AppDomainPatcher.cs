@@ -32,7 +32,7 @@ namespace BepInEx.Bootstrap
             AppDomain.CurrentDomain.AssemblyResolve += Entrypoint.LocalResolve;
             Logger.SetLogger(logger);
 
-            PatcherProcessor processor = new PatcherProcessor();
+            var processor = new PatcherProcessor();
             processor.AddPatchersFromDirectory(Paths.PluginPath, GetInterfacePatchers);
 
             processor.InitializePatching();
@@ -44,18 +44,25 @@ namespace BepInEx.Bootstrap
         private static List<AssemblyPatcher> GetInterfacePatchers(Assembly assembly)
         {
             var result = new List<AssemblyPatcher>();
-            foreach (var type in assembly.GetTypes().Where(t => typeof(IAssemblyPatcher).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface))
-            {
-                var patcherInstance = (IAssemblyPatcher)Activator.CreateInstance(type);
-                var patcher = new AssemblyPatcher
+            foreach (var type in assembly
+                                 .GetTypes().Where(t => typeof(IAssemblyPatcher).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface))
+                try
                 {
-                        Name = $"{assembly.GetName().Name}.{type.FullName}",
-                        Initializer = patcherInstance.Initialize,
-                        Finalizer = patcherInstance.Finish,
-                        Patcher = (ref AssemblyDefinition ass) => patcherInstance.Patch(ass)
-                };
-                result.Add(patcher);
-            }
+                    var patcherInstance = (IAssemblyPatcher) Activator.CreateInstance(type);
+                    var patcher = new AssemblyPatcher
+                    {
+                            Name = $"{assembly.GetName().Name}.{type.FullName}",
+                            Initializer = patcherInstance.Initialize,
+                            Finalizer = patcherInstance.Finish,
+                            Patcher = (ref AssemblyDefinition ass) => patcherInstance.Patch(ass)
+                    };
+                    result.Add(patcher);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(LogLevel.Warning, $"Could not load patcher methods from {assembly.GetName().Name}");
+                    Logger.Log(LogLevel.Warning, $"{ex}");
+                }
 
             return result;
         }
