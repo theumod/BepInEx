@@ -37,11 +37,6 @@ namespace BepInEx.Bootstrap
 
         private List<Action> Finalizers { get; } = new List<Action>();
 
-        public PatcherProcessor()
-        {
-
-        }
-
         public void AddPatcher(AssemblyPatcher patcher)
         {
             if (patcher.TargetDLLs != null && patcher.Patcher != null)

@@ -67,8 +67,11 @@ namespace BepInEx.Bootstrap
 
 			    assPatcher.InitializePatching();
                 var patchedAssemblies = assPatcher.PatchAll(assembliesToPatch);
-                assPatcher.FinalizePatching();
 
+                var patchedAssemblies2 = AppDomainPatcher.Run(assembliesToPatch);
+			    assPatcher.FinalizePatching();
+
+			    patchedAssemblies.UnionWith(patchedAssemblies2);
 			    AssemblyLoader.LoadIntoCLR(assembliesToPatch, patchedAssemblies);
 			}
 			catch (Exception ex)
