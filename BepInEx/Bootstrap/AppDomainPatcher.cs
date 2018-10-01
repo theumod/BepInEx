@@ -44,7 +44,7 @@ namespace BepInEx.Bootstrap
         {
             var result = new List<AssemblyPatcher>();
             foreach (var type in assembly
-                                 .GetTypes().Where(t => typeof(IAssemblyPatcher).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface))
+                                 .GetExportedTypes().Where(t => typeof(IAssemblyPatcher).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface))
                 try
                 {
                     var patcherInstance = (IAssemblyPatcher) Activator.CreateInstance(type);
