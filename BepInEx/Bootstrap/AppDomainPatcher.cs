@@ -54,7 +54,8 @@ namespace BepInEx.Bootstrap
                             Name = $"{assembly.GetName().Name}.{type.FullName}",
                             Initializer = patcherInstance.Initialize,
                             Finalizer = patcherInstance.Finish,
-                            Patcher = (ref AssemblyDefinition ass) => patcherInstance.Patch(ass)
+                            Patcher = (ref AssemblyDefinition ass) => patcherInstance.Patch(ass),
+                            TargetDLLs = patcherInstance.TargetDLLs
                     };
                     result.Add(patcher);
                 }
