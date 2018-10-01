@@ -9,16 +9,15 @@ using Mono.Cecil;
 
 namespace BepInEx.Bootstrap
 {
-    public static class AppDomainPatcher
+    internal static class AppDomainPatcher
     {
         public static HashSet<string> Run(Dictionary<string, AssemblyDefinition> assemblies)
         {
             var domain = MonoDomain.Create("PatcherDomain");
 
+            var runPatcher = typeof(AppDomainPatcher).GetMethod("RunPatcher", BindingFlags.NonPublic | BindingFlags.Static);
             var result = (HashSet<string>) MonoDomain.InvokeInDomain(MonoDomain.GetMonoDomainId(domain),
-                                                                     typeof(AppDomainPatcher).GetMethod("RunPatcher",
-                                                                                                        BindingFlags.NonPublic
-                                                                                                        | BindingFlags.Static),
+                                                                     runPatcher,
                                                                      null,
                                                                      new object[] {Paths.ExecutablePath, Logger.CurrentLogger, assemblies});
 
@@ -78,17 +77,12 @@ internal sealed class MonoDomain
 
     static MonoDomain()
     {
-        InvokeInDomain = (InvokeInDomainDelegate) Delegate.CreateDelegate(typeof(InvokeInDomainDelegate),
-                                                                          typeof(AppDomain).GetMethod("InvokeInDomainByID",
-                                                                                                      BindingFlags.Static
-                                                                                                      | BindingFlags.NonPublic));
+        var invokeInDomainById = typeof(AppDomain).GetMethod("InvokeInDomainByID", BindingFlags.Static | BindingFlags.NonPublic);
+        InvokeInDomain = (InvokeInDomainDelegate) Delegate.CreateDelegate(typeof(InvokeInDomainDelegate), invokeInDomainById);
     }
 
     [DllImport("mono.dll", EntryPoint = "mono_domain_get_id")]
     public static extern int GetMonoDomainId(IntPtr domain);
-
-    [DllImport("mono.dll", EntryPoint = "mono_domain_unload")]
-    public static extern int UnloadMonoDomain(IntPtr domain);
 
     public static IntPtr Create(string friendlyName)
     {
@@ -99,6 +93,9 @@ internal sealed class MonoDomain
     {
         UnloadMonoDomain(nativeDomain);
     }
+
+    [DllImport("mono.dll", EntryPoint = "mono_domain_unload")]
+    private static extern int UnloadMonoDomain(IntPtr domain);
 
     [DllImport("mono.dll", EntryPoint = "mono_domain_create_appdomain")]
     private static extern IntPtr CreateMonoDomain([MarshalAs(UnmanagedType.LPStr)] string friendly_name,

@@ -3,7 +3,7 @@ using Mono.Cecil;
 
 namespace BepInEx.Contract
 {
-    interface IAssemblyPatcher
+    public interface IAssemblyPatcher
     {
         IEnumerable<string> TargetDLLs { get; }
         void Initialize();
