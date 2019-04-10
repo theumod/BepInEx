@@ -5,6 +5,7 @@
 
 using System;
 using System.Text;
+using BepInEx;
 
 namespace UnityInjector.ConsoleUtil
 {
@@ -22,8 +23,14 @@ namespace UnityInjector.ConsoleUtil
 
 		public static uint ConsoleCodePage
 		{
-			get { return GetConsoleOutputCP(); }
-			set { SetConsoleOutputCP(value); }
+			get => Utility.IsOnWindows ? GetConsoleOutputCP() : (uint) Console.OutputEncoding.CodePage;
+			set
+			{
+				if(Utility.IsOnWindows)
+					SetConsoleOutputCP(value);
+				else
+					Console.OutputEncoding = GetEncoding((int)value);
+			}
 		}
 
 		public static uint GetActiveCodePage()
@@ -36,9 +43,9 @@ namespace UnityInjector.ConsoleUtil
 			_codePage = codePage;
 		}
 
-		public static ConsoleEncoding GetEncoding(uint codePage)
+		public static Encoding GetEncoding(uint codePage)
 		{
-			return new ConsoleEncoding(codePage);
+			return Utility.IsOnWindows ? new ConsoleEncoding(codePage) : Encoding.GetEncoding((int) codePage);
 		}
 
 		public override int GetByteCount(char[] chars, int index, int count)

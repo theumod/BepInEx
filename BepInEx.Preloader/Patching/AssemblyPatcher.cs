@@ -137,7 +137,7 @@ namespace BepInEx.Preloader.Patching
 				string filename = kv.Key;
 				var assembly = kv.Value;
 
-				if (ConfigDumpAssemblies.Value && patchedAssemblies.Contains(filename))
+                if (ConfigDumpAssemblies.Value && patchedAssemblies.Contains(filename))
 					using (var mem = new MemoryStream())
 					{
 						string dirPath = Path.Combine(Paths.BepInExRootPath, "DumpedAssemblies");
