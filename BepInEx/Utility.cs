@@ -11,6 +11,8 @@ namespace BepInEx
 	/// </summary>
 	public static class Utility
 	{
+		public static bool IsOnWindows => (int)Environment.OSVersion.Platform < 4;
+
 		/// <summary>
 		/// Combines multiple paths together, as the specific method is not available in .NET 3.5.
 		/// </summary>

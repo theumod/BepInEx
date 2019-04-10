@@ -7,6 +7,7 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using BepInEx;
 
 namespace UnityInjector.ConsoleUtil
 {
@@ -23,25 +24,29 @@ namespace UnityInjector.ConsoleUtil
 			if (IsAttached)
 				return;
 
-			if (_oOut == IntPtr.Zero)
-				_oOut = GetStdHandle(-11);
+			if (Utility.IsOnWindows)
+			{
+				if (_oOut == IntPtr.Zero)
+					_oOut = GetStdHandle(-11);
 
-			// Store Current Window
-			IntPtr currWnd = GetForegroundWindow();
+				// Store Current Window
+				IntPtr currWnd = GetForegroundWindow();
 
-			//Check for existing console before allocating
-			if (GetConsoleWindow() == IntPtr.Zero)
-				if (!AllocConsole())
-					throw new Exception("AllocConsole() failed");
+				//Check for existing console before allocating
+				if (GetConsoleWindow() == IntPtr.Zero)
+					if (!AllocConsole())
+						throw new Exception("AllocConsole() failed");
 
-			// Restore Foreground
-			SetForegroundWindow(currWnd);
+				// Restore Foreground
+				SetForegroundWindow(currWnd);
 
-			_cOut = CreateFile("CONOUT$", 0x80000000 | 0x40000000, 2, IntPtr.Zero, 3, 0, IntPtr.Zero);
-			BepInEx.ConsoleUtil.Kon.conOut = _cOut;
+				_cOut = CreateFile("CONOUT$", 0x80000000 | 0x40000000, 2, IntPtr.Zero, 3, 0, IntPtr.Zero);
+				BepInEx.ConsoleUtil.Kon.conOut = _cOut;
 
-			if (!SetStdHandle(-11, _cOut))
-				throw new Exception("SetStdHandle() failed");
+				if (!SetStdHandle(-11, _cOut))
+					throw new Exception("SetStdHandle() failed");
+            }
+			
 			Init();
 
 			IsAttached = true;
@@ -51,7 +56,7 @@ namespace UnityInjector.ConsoleUtil
 		{
 			set
 			{
-				if (!IsAttached)
+				if (!IsAttached || !Utility.IsOnWindows)
 					return;
 
 				if (value == null)
@@ -76,13 +81,17 @@ namespace UnityInjector.ConsoleUtil
 			if (!IsAttached)
 				return;
 
-			if (!CloseHandle(_cOut))
-				throw new Exception("CloseHandle() failed");
-			_cOut = IntPtr.Zero;
-			if (!FreeConsole())
-				throw new Exception("FreeConsole() failed");
-			if (!SetStdHandle(-11, _oOut))
-				throw new Exception("SetStdHandle() failed");
+			if (Utility.IsOnWindows)
+			{
+				if (!CloseHandle(_cOut))
+					throw new Exception("CloseHandle() failed");
+				_cOut = IntPtr.Zero;
+				if (!FreeConsole())
+					throw new Exception("FreeConsole() failed");
+				if (!SetStdHandle(-11, _oOut))
+					throw new Exception("SetStdHandle() failed");
+            }
+			
 			Init();
 
 			IsAttached = false;

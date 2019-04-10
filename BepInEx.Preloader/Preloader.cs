@@ -63,7 +63,9 @@ namespace BepInEx.Preloader
 				Logger.LogMessage("Compiled in Legacy Unity mode");
 #endif
 
-				Logger.LogInfo($"Running under Unity v{Process.GetCurrentProcess().MainModule.FileVersionInfo.FileVersion}");
+				// Since Linux doesn't support this info, there is no reason to print it on non-Windows OSs
+				if(Utility.IsOnWindows)
+					Logger.LogInfo($"Running under Unity v{Process.GetCurrentProcess().MainModule.FileVersionInfo.FileVersion}");
 
 				Logger.LogMessage("Preloader started");
 
@@ -302,14 +304,14 @@ namespace BepInEx.Preloader
 			{
 				ConsoleWindow.Attach();
 
-				var encoding = (uint)Encoding.UTF8.CodePage;
+                var encoding = (uint)Encoding.UTF8.CodePage;
 
-				if (ConfigConsoleShiftJis.Value)
-					encoding = 932;
+                if (ConfigConsoleShiftJis.Value)
+                    encoding = 932;
 
-				ConsoleEncoding.ConsoleCodePage = encoding;
-				Console.OutputEncoding = ConsoleEncoding.GetEncoding(encoding);
-			}
+                ConsoleEncoding.ConsoleCodePage = encoding;
+                Console.OutputEncoding = ConsoleEncoding.GetEncoding(encoding);
+            }
 			catch (Exception ex)
 			{
 				Logger.LogError("Failed to allocate console!");
