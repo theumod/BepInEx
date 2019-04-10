@@ -6,7 +6,7 @@
 using System;
 using System.Reflection;
 
-namespace UnityInjector.ConsoleUtil
+namespace BepInEx.ConsoleUtil
 {
 	internal static class SafeConsole
 	{
@@ -14,24 +14,37 @@ namespace UnityInjector.ConsoleUtil
 		private static GetColorDelegate _getForegroundColor;
 		private static SetColorDelegate _setBackgroundColor;
 		private static SetColorDelegate _setForegroundColor;
+		private static ResetColorDelegate _resetColor;
 
 		public static ConsoleColor BackgroundColor
 		{
-			get { return _getBackgroundColor(); }
-			set { _setBackgroundColor(value); }
+			get => _getBackgroundColor();
+			set => _setBackgroundColor(value);
 		}
 
 		public static ConsoleColor ForegroundColor
 		{
-			get { return _getForegroundColor(); }
-			set { _setForegroundColor(value); }
+			get => _getForegroundColor();
+			set => _setForegroundColor(value);
 		}
 
-		static SafeConsole()
+		public static void ResetColor() => _resetColor(); 
+
+        static SafeConsole()
 		{
 			var tConsole = typeof(Console);
 			InitColors(tConsole);
 		}
+
+		private static void SetColorFunction<T>(ref T del, MethodInfo cf, T kon, T none) where T : class
+		{
+			if (cf != null)
+				del = Delegate.CreateDelegate(typeof(T), cf) as T;
+			else if (Utility.IsOnWindows)
+				del = kon;
+			else
+				del = none;
+        }
 
 		private static void InitColors(Type tConsole)
 		{
@@ -41,25 +54,19 @@ namespace UnityInjector.ConsoleUtil
 			var sbc = tConsole.GetMethod("set_BackgroundColor", BINDING_FLAGS);
 			var gfc = tConsole.GetMethod("get_ForegroundColor", BINDING_FLAGS);
 			var gbc = tConsole.GetMethod("get_BackgroundColor", BINDING_FLAGS);
+			var rc = tConsole.GetMethod("ResetColor", BINDING_FLAGS);
 
-			_setForegroundColor = sfc != null
-				? (SetColorDelegate)Delegate.CreateDelegate(typeof(SetColorDelegate), sfc)
-				: (value => { });
+			SetColorFunction(ref _setForegroundColor, sfc, c => Kon.ForegroundColor = c, _ => { });
+			SetColorFunction(ref _setBackgroundColor, sbc, c => Kon.BackgroundColor = c, _ => { });
+			SetColorFunction(ref _getForegroundColor, gfc, () => Kon.ForegroundColor, () => ConsoleColor.Gray);
+			SetColorFunction(ref _getBackgroundColor, gbc, () => Kon.BackgroundColor, () => ConsoleColor.Black);
 
-			_setBackgroundColor = sbc != null
-				? (SetColorDelegate)Delegate.CreateDelegate(typeof(SetColorDelegate), sbc)
-				: (value => { });
-
-			_getForegroundColor = gfc != null
-				? (GetColorDelegate)Delegate.CreateDelegate(typeof(GetColorDelegate), gfc)
-				: (() => ConsoleColor.Gray);
-
-			_getBackgroundColor = gbc != null
-				? (GetColorDelegate)Delegate.CreateDelegate(typeof(GetColorDelegate), gbc)
-				: (() => ConsoleColor.Black);
+			SetColorFunction(ref _resetColor, rc, Kon.ResetConsoleColor, () => {});
 		}
 
 		private delegate ConsoleColor GetColorDelegate();
+
+		private delegate void ResetColorDelegate();
 
 		private delegate void SetColorDelegate(ConsoleColor value);
 	}

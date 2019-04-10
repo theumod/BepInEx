@@ -18,9 +18,9 @@ namespace BepInEx.Logging
 
 			string log = $"[{eventArgs.Level, -7}:{((ILogSource)sender).SourceName, 10}] {eventArgs.Data}\r\n";
 
-			Kon.ForegroundColor = eventArgs.Level.GetConsoleColor();
+			SafeConsole.ForegroundColor = eventArgs.Level.GetConsoleColor();
 			Console.Write(log);
-			Kon.ForegroundColor = ConsoleColor.Gray;
+			SafeConsole.ForegroundColor = ConsoleColor.Gray;
 		}
 
 		public void Dispose() { }
