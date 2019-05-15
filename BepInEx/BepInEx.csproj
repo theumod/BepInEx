@@ -36,11 +36,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Mono.Cecil, Version=0.10.3.0, Culture=neutral, PublicKeyToken=50cebf1cceb9d05e, processorArchitecture=MSIL">
-      <HintPath>..\packages\Mono.Cecil.0.10.3\lib\net35\Mono.Cecil.dll</HintPath>
+      <HintPath>..\..\..\packages\Mono.Cecil.0.10.3\lib\net35\Mono.Cecil.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="UnityEngine">
-      <HintPath>..\lib\UnityEngine.dll</HintPath>
+      <HintPath>..\..\..\resources\unity\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
@@ -75,13 +75,9 @@
     <Compile Include="Utility.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\submodules\BepInEx.Harmony\submodules\Harmony\Harmony\Harmony.csproj">
-      <Project>{a15d6ee6-f954-415b-8605-8a8470cc87dc}</Project>
+    <ProjectReference Include="..\..\Harmony\Harmony\Harmony.csproj">
+      <Project>{d58715c9-7f3a-4112-9081-fb2ecc2a30fa}</Project>
       <Name>Harmony</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\submodules\BepInEx.Harmony\BepInEx.Harmony\BepInEx.Harmony.csproj">
-      <Project>{54161cfe-ff42-4dde-b161-3a49545db5cd}</Project>
-      <Name>BepInEx.Harmony</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
