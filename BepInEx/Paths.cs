@@ -15,11 +15,11 @@ namespace BepInEx
 			GameRootPath = Path.GetDirectoryName(executablePath);
 			ManagedPath = Utility.CombinePaths(GameRootPath, $"{ProcessName}_Data", "Managed");
 			BepInExRootPath = Utility.CombinePaths(GameRootPath, "umod", "patcher");
-			ConfigPath = Path.Combine(BepInExRootPath, "config");
+			ConfigPath = BepInExRootPath;
 			BepInExConfigPath = Path.Combine(ConfigPath, "BepInEx.cfg");
-			PluginPath = Path.Combine(BepInExRootPath, "plugins");
+			PluginPath = BepInExRootPath;
 			PatcherPluginPath = Path.Combine(BepInExRootPath, "patchers");
-			BepInExAssemblyDirectory = Path.Combine(BepInExRootPath, "core");
+			BepInExAssemblyDirectory = BepInExRootPath;
 			BepInExAssemblyPath = Path.Combine(BepInExAssemblyDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.dll");
 		}
 
